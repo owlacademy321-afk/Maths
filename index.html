@@ -1,1 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Math Quest</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.4/dist/confetti.browser.min.js"></script>
 
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f0ebfc;
+      --fg: #1e1035;
+      --card: #ffffff;
+      --primary: #7c3aed;
+      --primary-fg: #ffffff;
+      --secondary: #ec4899;
+      --accent: #facc15;
+      --accent-fg: #713f12;
+      --muted: #e5dff8;
+      --muted-fg: #6b5b8e;
+      --destructive: #ef4444;
+      --border: #d8cff0;
+      --radius: 1rem;
+    }
+
+    body {
+      font-family: 'Nunito', sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .display { font-family: 'Fredoka One', cursive; }
+
+    /* Layout */
+    .app {
+      position: relative;
+      width: 100%;
+      max-width: 640px;
+      z-index: 1;
+    }
+
+    .blob {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(80px);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .blob-1 { width: 280px; height: 280px; background: rgba(124,58,237,0.1); top: -80px; left: -80px; }
+    .blob-2 { width: 380px; height: 380px; background: rgba(236,72,153,0.1); bottom: -100px; right: -100px; }
+    .blob-3 { width: 240px; height: 240px; background: rgba(250,204,21,0.1); top: 50%; left: 50%; transform: translate(-50%,-50%); }
+
+    /* Card */
+    .card {
+      background: var(--card);
+      border-radius: 1.5rem;
+      border: 4px solid rgba(124,58,237,0.2);
+      box-shadow: 0 20px 60px rgba(124,58,237,0.15);
+      padding: 2rem;
+      text-align: center;
+    }
+
+    /* Button */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.4rem;
+      padding: 1rem 2rem;
+      border-radius: 1rem;
+      border: none;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .btn:hover { transform: scale(1.05); }
+    .btn:active { transform: scale(0.95); }
+    .btn-primary { background: var(--primary); color: #fff; box-shadow: 0 8px 24px rgba(124,58,237,0.35); }
+    .btn-primary:hover { background: #6d28d9; }
+
+    /* Timer */
+    .timer-bar-wrap {
+      width: 100%;
+      height: 14px;
+      background: var(--muted);
+      border-radius: 9999px;
+      overflow: hidden;
+      margin-top: 0.5rem;
+    }
+    .timer-bar {
+      height: 100%;
+      border-radius: 9999px;
+      transition: width 1s linear, background 0.3s;
+    }
+
+    /* Choice buttons */
+    .choices {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+    }
+    .choice-btn {
+      font-family: 'Fredoka One', cursive;
+      font-size: 2rem;
+      padding: 1.25rem;
+      border-radius: 1rem;
+      border: 4px solid rgba(124,58,237,0.2);
+      background: var(--card);
+      cursor: pointer;
+      transition: transform 0.15s, background 0.15s, box-shadow 0.15s, border-color 0.15s;
+    }
+    .choice-btn:hover:not(:disabled) {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 24px rgba(124,58,237,0.2);
+      border-color: var(--primary);
+      background: var(--muted);
+    }
+    .choice-btn.correct { background: #22c55e; border-color: #22c55e; color: #fff; transform: scale(1.05); }
+    .choice-btn.wrong   { background: var(--destructive); border-color: var(--destructive); color: #fff; }
+    .choice-btn.dim     { opacity: 0.5; }
+    .choice-btn:disabled { cursor: default; }
+
+    /* Feedback overlay */
+    .feedback-overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      pointer-events: none;
+    }
+    .feedback-bubble {
+      font-family: 'Fredoka One', cursive;
+      font-size: 2.5rem;
+      padding: 1.5rem 3rem;
+      border-radius: 9999px;
+      color: #fff;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      animation: bounceIn 0.4s ease-out;
+    }
+    @keyframes bounceIn {
+      0%   { transform: scale(0.3); opacity: 0; }
+      60%  { transform: scale(1.1); }
+      80%  { transform: scale(0.95); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    /* Misc helpers */
+    .flex-center { display: flex; align-items: center; justify-content: center; }
+    .gap-2 { gap: 0.5rem; }
+    .gap-3 { gap: 0.75rem; }
+    .mb-2 { margin-bottom: 0.5rem; }
+    .mb-4 { margin-bottom: 1rem; }
+    .mb-6 { margin-bottom: 1.5rem; }
+    .mb-8 { margin-bottom: 2rem; }
+    .text-sm { font-size: 0.85rem; }
+    .text-muted { color: var(--muted-fg); }
+    .text-primary { color: var(--primary); }
+    .text-secondary { color: var(--secondary); }
+    .text-accent { color: var(--accent-fg); }
+    .text-destructive { color: var(--destructive); }
+    .uppercase { text-transform: uppercase; letter-spacing: 0.1em; }
+    .header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+    .pill {
+      display: flex; align-items: center; gap: 0.5rem;
+      background: var(--card); border-radius: 1rem; padding: 0.6rem 1.2rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08); font-size: 1.1rem;
+    }
+    .score-icon { font-size: 1.3rem; }
+    .timer-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+    .wiggle { animation: wiggle 0.5s ease-in-out; }
+    @keyframes wiggle { 0%,100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
+
+    /* Time select */
+    .time-opts { display: flex; gap: 1rem; justify-content: center; }
+    .time-opt {
+      display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
+      padding: 1rem 1.5rem; border-radius: 1rem; border: none; cursor: pointer;
+      font-family: 'Fredoka One', cursive; font-size: 1.3rem;
+      transition: transform 0.15s, background 0.15s;
+    }
+    .time-opt.selected { background: var(--secondary); color: #fff; transform: scale(1.05); box-shadow: 0 6px 18px rgba(236,72,153,0.4); }
+    .time-opt:not(.selected) { background: var(--muted); color: var(--muted-fg); }
+    .time-opt:not(.selected):hover { background: #d8cff0; }
+
+    /* Score result card */
+    .score-box { background: var(--muted); border-radius: 1rem; padding: 1.5rem; margin-bottom: 2rem; }
+    .big-score { font-size: 4rem; }
+    .big-total { font-size: 1.6rem; color: var(--muted-fg); }
+
+    /* Question card */
+    .question-card { animation: flipIn 0.4s ease-out; }
+    @keyframes flipIn {
+      0%   { transform: perspective(600px) rotateY(90deg) scale(0.5); opacity: 0; }
+      100% { transform: perspective(600px) rotateY(0deg) scale(1); opacity: 1; }
+    }
+    .question-nums { font-size: clamp(2.8rem, 8vw, 5rem); }
+    .question-op { font-size: clamp(2rem, 6vw, 3.5rem); }
+
+    @media (max-width: 480px) {
+      .card { padding: 1.25rem; }
+      .feedback-bubble { font-size: 1.8rem; padding: 1rem 2rem; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="blob blob-1"></div>
+<div class="blob blob-2"></div>
+<div class="blob blob-3"></div>
+
+<div class="app" id="app"></div>
+
+<script>
+// ─── Constants ───────────────────────────────────────────────────────────────
+const TOTAL_QUESTIONS = 10;
+const OPERATORS = ['+', '-', '×'];
+
+// ─── Game Logic ───────────────────────────────────────────────────────────────
+function generateQuestion() {
+  const op = OPERATORS[Math.floor(Math.random() * OPERATORS.length)];
+  let num1, num2, answer;
+  if (op === '+') {
+    num1 = Math.floor(Math.random() * 50) + 1;
+    num2 = Math.floor(Math.random() * 50) + 1;
+    answer = num1 + num2;
+  } else if (op === '-') {
+    num1 = Math.floor(Math.random() * 50) + 10;
+    num2 = Math.floor(Math.random() * num1) + 1;
+    answer = num1 - num2;
+  } else {
+    num1 = Math.floor(Math.random() * 12) + 1;
+    num2 = Math.floor(Math.random() * 12) + 1;
+    answer = num1 * num2;
+  }
+  return { num1, num2, operator: op, answer };
+}
+
+function generateChoices(correct) {
+  const set = new Set([correct]);
+  const spread = Math.max(5, Math.abs(correct) + 3);
+  let attempts = 0;
+  while (set.size < 4 && attempts < 100) {
+    attempts++;
+    const delta = Math.floor(Math.random() * spread) + 1;
+    const sign = Math.random() < 0.5 ? 1 : -1;
+    set.add(correct + sign * delta);
+  }
+  // Shuffle
+  const arr = [...set];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// ─── Sound Effects ────────────────────────────────────────────────────────────
+function playTone(freq, dur, type = 'sine', vol = 0.3) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.value = vol;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + dur);
+    osc.start();
+    osc.stop(ctx.currentTime + dur);
+  } catch(e) {}
+}
+const SFX = {
+  correct() {
+    playTone(523, 0.1, 'sine', 0.2);
+    setTimeout(() => playTone(659, 0.1, 'sine', 0.2), 100);
+    setTimeout(() => playTone(784, 0.2, 'sine', 0.2), 200);
+  },
+  wrong() { playTone(200, 0.3, 'sawtooth', 0.15); },
+  gameOver() { [523,494,440,392].forEach((f,i) => setTimeout(() => playTone(f, 0.25, 'sine', 0.2), i*200)); },
+  win() { [523,587,659,698,784,880].forEach((f,i) => setTimeout(() => playTone(f, 0.15, 'sine', 0.2), i*100)); }
+};
+
+// ─── Confetti ─────────────────────────────────────────────────────────────────
+function launchConfetti(perfect) {
+  const colors = ['#a855f7','#ec4899','#facc15','#22c55e','#3b82f6'];
+  if (perfect) {
+    confetti({ particleCount: 150, spread: 100, origin: { y: 0.5 }, colors });
+    const end = Date.now() + 3500;
+    const frame = () => {
+      confetti({ particleCount: 6, angle: 60, spread: 70, origin: { x: 0 }, colors });
+      confetti({ particleCount: 6, angle: 120, spread: 70, origin: { x: 1 }, colors });
+      if (Date.now() < end) requestAnimationFrame(frame);
+    };
+    frame();
+  } else {
+    confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 }, colors });
+  }
+}
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let state = {
+  screen: 'start',    // start | playing | over
+  selectedTime: 60,
+  totalTime: 60,
+  timeLeft: 60,
+  score: 0,
+  currentIndex: 0,
+  question: null,
+  choices: [],
+  selected: null,     // chosen answer (null = not yet picked)
+  feedback: null,     // 'correct' | 'wrong' | null
+};
+
+let timerInterval = null;
+let feedbackTimeout = null;
+
+// ─── Render ───────────────────────────────────────────────────────────────────
+const app = document.getElementById('app');
+
+function render() {
+  if (state.screen === 'start') app.innerHTML = renderStart();
+  else if (state.screen === 'playing') app.innerHTML = renderPlaying();
+  else app.innerHTML = renderOver();
+  attachEvents();
+}
+
+function renderStart() {
+  return `
+    <div style="text-align:center;max-width:480px;margin:auto;">
+      <div style="font-size:5rem;margin-bottom:1.5rem;display:inline-block;animation:float 3s ease-in-out infinite;">🧮</div>
+      <style>@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}</style>
+      <h1 class="display" style="font-size:clamp(2.5rem,8vw,4rem);margin-bottom:0.5rem;">
+        Math <span style="color:var(--primary)">Quest</span>
+      </h1>
+      <p class="text-muted mb-8" style="font-size:1.1rem;">Solve 10 math problems before time runs out!</p>
+
+      <div class="card mb-6">
+        <p class="display text-sm text-muted uppercase mb-4">⏱ Choose Timer</p>
+        <div class="time-opts">
+          <button class="time-opt ${state.selectedTime===30?'selected':''}" data-time="30">⚡<br>30s</button>
+          <button class="time-opt ${state.selectedTime===60?'selected':''}" data-time="60">⏱<br>60s</button>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="start-btn" style="font-size:1.5rem;padding:1.2rem 2.5rem;">
+        ▶ Start Game!
+      </button>
+    </div>
+  `;
+}
+
+function renderPlaying() {
+  const { question, choices, selected, feedback, timeLeft, totalTime, score, currentIndex } = state;
+  if (!question) return '';
+
+  const pct = (timeLeft / totalTime) * 100;
+  const isLow = timeLeft <= 10;
+  const timerColor = isLow ? 'var(--destructive)' : pct > 50 ? 'var(--primary)' : 'var(--accent)';
+  const opEmoji = { '+': '➕', '-': '➖', '×': '✖️' }[question.operator];
+
+  let choicesHtml = choices.map((val, i) => {
+    let cls = 'choice-btn';
+    if (selected !== null) {
+      if (val === question.answer) cls += ' correct';
+      else if (val === selected) cls += ' wrong';
+      else cls += ' dim';
+    }
+    return `<button class="${cls}" data-val="${val}" ${selected !== null ? 'disabled' : ''}>${val}</button>`;
+  }).join('');
+
+  let feedbackHtml = '';
+  if (feedback) {
+    const bg = feedback === 'correct' ? '#22c55e' : 'var(--destructive)';
+    const msg = feedback === 'correct' ? '🎉 Correct!' : '❌ Try Again!';
+    feedbackHtml = `<div class="feedback-overlay">
+      <div class="feedback-bubble" style="background:${bg};">${msg}</div>
+    </div>`;
+  }
+
+  return `
+    ${feedbackHtml}
+    <div class="header-row">
+      <div class="pill display"><span class="score-icon">⭐</span> ${score}</div>
+      <div class="pill display">🏆 ${currentIndex + 1} / ${TOTAL_QUESTIONS}</div>
+    </div>
+
+    <div style="margin-bottom:1.5rem;">
+      <div class="timer-row">
+        <span style="font-size:1.2rem;${isLow?'color:var(--destructive)':'color:var(--primary)'}">⏱</span>
+        <span class="display" style="font-size:1.1rem;${isLow?'color:var(--destructive)':''}">
+          ${timeLeft}s
+        </span>
+      </div>
+      <div class="timer-bar-wrap">
+        <div class="timer-bar" style="width:${pct}%;background:${timerColor};"></div>
+      </div>
+    </div>
+
+    <div class="card question-card mb-2">
+      <p class="text-sm text-muted uppercase mb-4" style="font-weight:800;letter-spacing:0.12em;">Solve this!</p>
+      <div class="flex-center gap-3">
+        <span class="display question-nums" style="color:var(--primary);">${question.num1}</span>
+        <span class="question-op">${opEmoji}</span>
+        <span class="display question-nums" style="color:var(--secondary);">${question.num2}</span>
+        <span class="display question-nums" style="color:var(--muted-fg);">=</span>
+        <span class="display question-nums" style="color:var(--accent-fg);">?</span>
+      </div>
+    </div>
+
+    <div class="choices">${choicesHtml}</div>
+  `;
+}
+
+function renderOver() {
+  const { score } = state;
+  const pct = (score / TOTAL_QUESTIONS) * 100;
+  let emoji, label, labelColor;
+  if (pct === 100) { emoji = '🏆'; label = 'Perfect Score!'; labelColor = 'var(--accent-fg)'; }
+  else if (pct >= 70) { emoji = '🌟'; label = 'Great Job!'; labelColor = 'var(--primary)'; }
+  else if (pct >= 40) { emoji = '😊'; label = 'Good Try!'; labelColor = 'var(--secondary)'; }
+  else { emoji = '💪'; label = 'Keep Practicing!'; labelColor = 'var(--muted-fg)'; }
+
+  return `
+    <div class="card" style="max-width:480px;margin:auto;padding:2.5rem;">
+      <div style="font-size:5rem;margin-bottom:1rem;">${emoji}</div>
+      <h2 class="display" style="font-size:2.5rem;color:${labelColor};margin-bottom:0.5rem;">${label}</h2>
+      <p class="text-muted mb-6" style="font-size:1.1rem;">Game Over!</p>
+      <div class="score-box mb-8">
+        <div class="flex-center gap-3">
+          <span style="font-size:2rem;">🏆</span>
+          <span class="display big-score">${score}</span>
+          <span class="display big-total">/ ${TOTAL_QUESTIONS}</span>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="restart-btn">↺ Play Again</button>
+    </div>
+  `;
+}
+
+// ─── Events ───────────────────────────────────────────────────────────────────
+function attachEvents() {
+  if (state.screen === 'start') {
+    document.querySelectorAll('.time-opt').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.selectedTime = parseInt(btn.dataset.time);
+        render();
+      });
+    });
+    document.getElementById('start-btn')?.addEventListener('click', startGame);
+  }
+
+  if (state.screen === 'playing') {
+    document.querySelectorAll('.choice-btn').forEach(btn => {
+      btn.addEventListener('click', () => pickAnswer(parseInt(btn.dataset.val)));
+    });
+  }
+
+  if (state.screen === 'over') {
+    document.getElementById('restart-btn')?.addEventListener('click', () => {
+      state.screen = 'start';
+      render();
+    });
+  }
+}
+
+// ─── Game Actions ─────────────────────────────────────────────────────────────
+function startGame() {
+  clearInterval(timerInterval);
+  clearTimeout(feedbackTimeout);
+
+  const q = generateQuestion();
+  state = {
+    screen: 'playing',
+    selectedTime: state.selectedTime,
+    totalTime: state.selectedTime,
+    timeLeft: state.selectedTime,
+    score: 0,
+    currentIndex: 0,
+    question: q,
+    choices: generateChoices(q.answer),
+    selected: null,
+    feedback: null,
+  };
+
+  render();
+  startTimer();
+}
+
+function startTimer() {
+  clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    state.timeLeft--;
+    if (state.timeLeft <= 0) {
+      clearInterval(timerInterval);
+      endGame();
+    } else {
+      // Only re-render timer bar parts (or just full render — simple approach)
+      const pct = (state.timeLeft / state.totalTime) * 100;
+      const isLow = state.timeLeft <= 10;
+      const timerColor = isLow ? 'var(--destructive)' : pct > 50 ? 'var(--primary)' : 'var(--accent)';
+      const bar = document.querySelector('.timer-bar');
+      const label = document.querySelector('.timer-row .display');
+      const icon = document.querySelector('.timer-row span:first-child');
+      if (bar) bar.style.width = pct + '%';
+      if (bar) bar.style.background = timerColor;
+      if (label) { label.textContent = state.timeLeft + 's'; label.style.color = isLow ? 'var(--destructive)' : ''; }
+      if (icon) icon.style.color = isLow ? 'var(--destructive)' : 'var(--primary)';
+    }
+  }, 1000);
+}
+
+function pickAnswer(val) {
+  if (state.feedback !== null || state.selected !== null) return;
+
+  state.selected = val;
+  const isCorrect = val === state.question.answer;
+  state.feedback = isCorrect ? 'correct' : 'wrong';
+  if (isCorrect) { state.score++; SFX.correct(); }
+  else { SFX.wrong(); }
+
+  render();
+
+  clearTimeout(feedbackTimeout);
+  feedbackTimeout = setTimeout(() => {
+    state.feedback = null;
+    state.selected = null;
+    const nextIndex = state.currentIndex + 1;
+
+    if (nextIndex >= TOTAL_QUESTIONS) {
+      endGame(isCorrect);
+    } else {
+      state.currentIndex = nextIndex;
+      const q = generateQuestion();
+      state.question = q;
+      state.choices = generateChoices(q.answer);
+      render();
+    }
+  }, 1000);
+}
+
+function endGame(lastWasCorrect) {
+  clearInterval(timerInterval);
+  state.screen = 'over';
+  render();
+
+  const pct = (state.score / TOTAL_QUESTIONS) * 100;
+  if (pct === 100) {
+    SFX.win();
+    launchConfetti(true);
+  } else if (pct >= 70) {
+    launchConfetti(false);
+    SFX.win();
+  } else {
+    SFX.gameOver();
+  }
+}
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+render();
+</script>
+</body>
+</html>
